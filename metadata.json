@@ -1,0 +1,5 @@
+{
+  "name": "AI Image & Video Studio",
+  "description": "A single-page React app for an AI Image & Video Studio integrating NanoBanana 2 for image generation and Kling AI 3.0 for image-to-video animation.",
+  "requestFramePermissions": []
+}
