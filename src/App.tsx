@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { 
-  Image as ImageIcon, Video, Edit3, Library as LibraryIcon, Settings, 
-  Wand2, Download, Trash2, Copy, Play, Maximize2, 
+import {
+  Image as ImageIcon, Video, Edit3, Library as LibraryIcon, Settings,
+  Wand2, Download, Trash2, Copy, Play, Maximize2,
   CheckCircle2, XCircle, UploadCloud, SlidersHorizontal,
   Undo, Redo, Type, Eraser, MousePointer2, Crop, RotateCw, FlipHorizontal,
-  ChevronDown, ChevronUp, Sparkles, Check
+  ChevronDown, ChevronUp, Sparkles, Check,
+  Search, Box, UserSquare, BarChart2, ChevronRight, Monitor, Smartphone, Square, Presentation
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -19,10 +20,226 @@ type LibraryItem = {
   metadata: any;
 };
 
-const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
+const IMAGE_MODELS = [
+  { id: 'higgsfield-soul-2', name: 'Higgsfield Soul 2.0', badge: 'NEW', description: 'Next generation ultra-realistic fashion visuals', category: 'Featured models', icon: <Sparkles className="w-4 h-4 text-gray-400" /> },
+  { id: 'seedream-5-lite', name: 'Seedream 5.0 lite', description: 'Intelligent visual reasoning', category: 'Featured models', icon: <BarChart2 className="w-4 h-4 text-gray-400" /> },
+  { id: 'seedream-4-5', name: 'Seedream 4.5', description: "ByteDance's next-gen 4K image model", category: 'Featured models', icon: <BarChart2 className="w-4 h-4 text-gray-400" /> },
+  { id: 'nano-banana-2', name: 'Nano Banana 2', badge: 'NEW', description: 'Pro quality at flash speed', category: 'Featured models', icon: <span className="text-gray-400 font-bold text-sm leading-none flex items-center justify-center w-full h-full">G</span> },
+  { id: 'nano-banana-pro', name: 'Nano Banana Pro', description: "Google's flagship generation model", category: 'Featured models', icon: <span className="text-[#ccff00] font-bold text-sm leading-none flex items-center justify-center w-full h-full">G</span> },
+  { id: 'gpt-image-1-5', name: 'GPT Image 1.5', badge: 'PREMIUM', description: 'True-color precision rendering', category: 'Featured models', icon: <Box className="w-4 h-4 text-gray-400" /> },
+  { id: 'nano-banana', name: 'Nano Banana', badge: 'PREMIUM', description: "Google's standard generation model", category: 'Other models', icon: <span className="text-gray-400 font-bold text-sm leading-none flex items-center justify-center w-full h-full">G</span> },
+  { id: 'higgsfield-soul', name: 'Higgsfield Soul', description: 'Ultra-realistic fashion visuals', category: 'Other models', icon: <Sparkles className="w-4 h-4 text-gray-400" /> },
+  { id: 'higgsfield-face-swap', name: 'Higgsfield Face Swap', description: 'Seamless face swapping', category: 'Other models', icon: <UserSquare className="w-4 h-4 text-gray-400" /> },
+];
+
+const VIDEO_MODELS = [
+  { id: 'kling-ai', name: 'Kling AI 3.0', badge: 'NEW', description: 'Next generation video generation', category: 'Featured models', icon: <Video className="w-4 h-4 text-gray-400" /> },
+  { id: 'kling-ai-pro', name: 'Kling AI Pro', badge: 'PREMIUM', description: 'High fidelity video generation', category: 'Featured models', icon: <Video className="w-4 h-4 text-[#ccff00]" /> },
+  { id: 'higgsfield-video-1', name: 'Higgsfield Video 1.0', description: 'Cinematic video reasoning', category: 'Other models', icon: <Sparkles className="w-4 h-4 text-gray-400" /> },
+];
+
+const ASPECT_RATIOS = [
+  { id: '1:1', label: '1:1', icon: <Square className="w-4 h-4" /> },
+  { id: '3:4', label: '3:4', icon: <Monitor className="w-4 h-4 rotate-90" /> },
+  { id: '4:3', label: '4:3', icon: <Monitor className="w-4 h-4" /> },
+  { id: '9:16', label: '9:16', icon: <Smartphone className="w-4 h-4" /> },
+  { id: '16:9', label: '16:9', icon: <Presentation className="w-4 h-4" /> },
+];
+
+const ModelSelector = ({ model, setModel, modelsList = IMAGE_MODELS }: { model: string, setModel: (m: string) => void, modelsList?: any[] }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedModel = modelsList.find(m => m.id === model) || modelsList.find(m => m.id === 'nano-banana-pro') || modelsList[0];
+
+  const filteredModels = modelsList.filter(m => m.name.toLowerCase().includes(search.toLowerCase()) || m.description.toLowerCase().includes(search.toLowerCase()));
+
+  const featured = filteredModels.filter(m => m.category === 'Featured models');
+  const others = filteredModels.filter(m => m.category === 'Other models');
+
+  return (
+    <div className="relative" ref={dropRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-black/50 border border-white/10 hover:bg-white/5 rounded-xl p-3 text-sm text-white flex items-center justify-between transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 rounded flex items-center justify-center bg-white/5">
+            {selectedModel.icon}
+          </div>
+          <span className="font-medium">{selectedModel.name}</span>
+        </div>
+        <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="absolute z-50 mt-2 w-full bg-[#1a1a1e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden left-0"
+          >
+            <div className="p-3 border-b border-white/5">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search..."
+                  className="w-full bg-white/5 border border-white/10 rounded-lg pl-9 pr-3 py-2 text-sm text-white focus:outline-none focus:border-[#ccff00]"
+                />
+              </div>
+            </div>
+
+            <div className="max-h-[50vh] overflow-y-auto custom-scrollbar p-2">
+              {featured.length > 0 && (
+                <div className="mb-2">
+                  <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider px-3 py-2 flex items-center gap-2">
+                    <Sparkles className="w-3 h-3" /> Featured models
+                  </div>
+                  {featured.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => { setModel(m.id); setIsOpen(false); }}
+                      className={`w-full text-left flex items-center gap-3 p-2 rounded-xl transition-colors ${model === m.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                    >
+                      <div className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center bg-white/5 border border-white/5">
+                        {m.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={`${model === m.id ? 'text-white' : 'text-gray-200'} font-medium text-sm truncate`}>{m.name}</span>
+                          {m.badge && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wide leading-none ${m.badge === 'PREMIUM' ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black' : 'bg-[#ccff00] text-black'}`}>
+                              {m.badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">{m.description}</div>
+                      </div>
+                      {model === m.id && <Check className="w-4 h-4 text-[#ccff00] shrink-0 mx-2" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {others.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-medium text-gray-500 uppercase tracking-wider px-3 py-2 flex items-center gap-2">
+                    <Box className="w-3 h-3" /> Other models
+                  </div>
+                  {others.map(m => (
+                    <button
+                      key={m.id}
+                      onClick={() => { setModel(m.id); setIsOpen(false); }}
+                      className={`w-full text-left flex items-center gap-3 p-2 rounded-xl transition-colors ${model === m.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
+                    >
+                      <div className="w-10 h-10 shrink-0 rounded-lg flex items-center justify-center bg-white/5 border border-white/5">
+                        {m.icon}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={`${model === m.id ? 'text-white' : 'text-gray-200'} font-medium text-sm truncate`}>{m.name}</span>
+                          {m.badge && (
+                            <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded tracking-wide leading-none ${m.badge === 'PREMIUM' ? 'bg-gradient-to-r from-yellow-400 to-yellow-600 text-black' : 'bg-[#ccff00] text-black'}`}>
+                              {m.badge}
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">{m.description}</div>
+                      </div>
+                      {model === m.id && <Check className="w-4 h-4 text-[#ccff00] shrink-0 mx-2" />}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+const AspectRatioSelector = ({ aspectRatio, setAspectRatio }: { aspectRatio: string, setAspectRatio: (ar: string) => void }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const dropRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (dropRef.current && !dropRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedAR = ASPECT_RATIOS.find(r => r.id === aspectRatio) || ASPECT_RATIOS[0];
+
+  return (
+    <div className="relative" ref={dropRef}>
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full bg-black/50 border border-white/10 hover:bg-white/5 rounded-xl p-3 text-sm text-white flex items-center justify-between transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 rounded flex items-center justify-center bg-white/5 text-gray-400">
+            {selectedAR.icon}
+          </div>
+          <span className="font-medium">{selectedAR.label}</span>
+        </div>
+        <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isOpen ? 'rotate-90' : ''}`} />
+      </button>
+
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: -10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -10 }}
+            transition={{ duration: 0.15, ease: 'easeOut' }}
+            className="absolute z-50 mt-2 w-full bg-[#1a1a1e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden left-0 py-2"
+          >
+            {ASPECT_RATIOS.map(ar => (
+              <button
+                key={ar.id}
+                onClick={() => { setAspectRatio(ar.id); setIsOpen(false); }}
+                className={`w-full text-left flex items-center gap-3 px-3 py-2.5 transition-colors ${aspectRatio === ar.id ? 'bg-white/10' : 'hover:bg-white/5'}`}
+              >
+                <div className="w-8 h-8 shrink-0 rounded-lg flex items-center justify-center bg-white/5 border border-white/5 text-gray-400">
+                  {ar.icon}
+                </div>
+                <span className={`${aspectRatio === ar.id ? 'text-white' : 'text-gray-200'} font-medium text-sm flex-1`}>{ar.label}</span>
+                {aspectRatio === ar.id && <Check className="w-4 h-4 text-[#ccff00] shrink-0" />}
+              </button>
+            ))}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  )
+}
+
+const GenerateTab = ({ onSave, onAnimate, onEdit, onPreview, showToast, kieKey }: any) => {
   const [prompt, setPrompt] = useState('');
   const [negPrompt, setNegPrompt] = useState('');
-  const [aspectRatio, setAspectRatio] = useState('1:1');
+  const [model, setModel] = useState('nano-banana-pro');
+  const [aspectRatio, setAspectRatio] = useState('3:4');
   const [style, setStyle] = useState('Photorealistic');
   const [steps, setSteps] = useState(30);
   const [cfg, setCfg] = useState(7);
@@ -44,7 +261,7 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
           'Authorization': `Bearer ${kieKey || 'mock-key'}`,
         },
         body: JSON.stringify({
-          model: 'NanoBanana 2',
+          model: model,
           prompt,
           negative_prompt: negPrompt,
           aspect_ratio: aspectRatio,
@@ -76,11 +293,16 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full overflow-hidden">
-      <div className="w-full md:w-80 bg-[#131318] border-r border-white/10 p-5 overflow-y-auto flex flex-col gap-6 custom-scrollbar shrink-0">
+    <div className="flex flex-col md:flex-row h-full overflow-hidden min-h-0">
+      <div className="w-full md:w-80 h-[45vh] md:h-full bg-[#131318] border-r border-white/10 p-5 overflow-y-auto overscroll-behavior-contain flex flex-col gap-6 custom-scrollbar shrink-0">
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Model</label>
+          <ModelSelector model={model} setModel={setModel} />
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Prompt</label>
-          <textarea 
+          <textarea
             value={prompt} onChange={e => setPrompt(e.target.value)}
             className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#ccff00] resize-none h-24"
             placeholder="Describe the scene you imagine..."
@@ -95,7 +317,7 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
           <AnimatePresence>
             {showNegPrompt && (
               <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-                <textarea 
+                <textarea
                   value={negPrompt} onChange={e => setNegPrompt(e.target.value)}
                   className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#ccff00] resize-none h-16"
                   placeholder="What to exclude..."
@@ -104,18 +326,10 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
             )}
           </AnimatePresence>
         </div>
-        
+
         <div>
           <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Aspect Ratio</label>
-          <div className="grid grid-cols-5 gap-2">
-            {['1:1', '16:9', '9:16', '4:3', '3:4'].map(ar => (
-              <button key={ar} onClick={() => setAspectRatio(ar)}
-                className={`py-2 text-xs rounded-lg border ${aspectRatio === ar ? 'border-[#ccff00] text-[#ccff00] bg-[#ccff00]/10' : 'border-white/10 text-gray-400 hover:bg-white/5'}`}
-              >
-                {ar}
-              </button>
-            ))}
-          </div>
+          <AspectRatioSelector aspectRatio={aspectRatio} setAspectRatio={setAspectRatio} />
         </div>
 
         <div>
@@ -167,7 +381,7 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
           </AnimatePresence>
         </div>
 
-        <button 
+        <button
           onClick={handleGenerate}
           disabled={isGenerating || !prompt}
           className="mt-auto w-full bg-[#ccff00] text-black font-semibold py-3.5 rounded-xl hover:bg-[#b3e600] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
@@ -177,17 +391,24 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
         </button>
       </div>
 
-      <div className="flex-1 bg-[#0a0a0f] p-4 md:p-6 overflow-y-auto flex items-center justify-center custom-scrollbar">
+      <div className="flex-1 bg-[#0a0a0f] p-4 md:p-8 overflow-y-auto flex items-center justify-center custom-scrollbar">
         {results.length > 0 ? (
-          <div className={`grid gap-4 w-full max-w-4xl ${results.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+          <div className={`grid gap-6 w-full max-w-5xl grid-cols-1 ${results.length > 1 ? 'md:grid-cols-2' : ''}`}>
             {results.map((url, i) => (
-              <div key={i} className="relative group aspect-square bg-black/50 rounded-2xl overflow-hidden border border-white/10">
-                <img src={url} alt="Generated" className="w-full h-full object-contain" />
-                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                  <button onClick={() => onSave(url, prompt, 'image')} className="p-2 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-full text-white transition-colors" title="Save to Library"><LibraryIcon className="w-5 h-5" /></button>
-                  <button onClick={() => onEdit(url)} className="p-2 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-full text-white transition-colors" title="Edit"><Edit3 className="w-5 h-5" /></button>
-                  <button onClick={() => onAnimate(url)} className="p-2 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-full text-white transition-colors" title="Animate"><Video className="w-5 h-5" /></button>
-                  <a href={url} download className="p-2 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-full text-white transition-colors" title="Download"><Download className="w-5 h-5" /></a>
+              <div key={i} className="relative group aspect-square bg-black/50 rounded-3xl overflow-hidden border border-white/10 shadow-lg hover:border-[#ccff00]/30 transition-all">
+                <img
+                  src={url}
+                  alt="Generated"
+                  className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform duration-500"
+                  onClick={() => onPreview({ url, prompt, type: 'image' })}
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-6 gap-3">
+                  <div className="flex-1 flex gap-2">
+                    <button onClick={() => onSave(url, prompt, 'image')} className="p-2.5 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md" title="Save to Library"><LibraryIcon className="w-5 h-5" /></button>
+                    <button onClick={() => onEdit(url)} className="p-2.5 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md" title="Edit"><Edit3 className="w-5 h-5" /></button>
+                    <button onClick={() => onAnimate(url)} className="p-2.5 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md" title="Animate"><Video className="w-5 h-5" /></button>
+                  </div>
+                  <a href={url} download className="p-2.5 bg-[#ccff00] text-black rounded-xl hover:scale-105 transition-all" title="Download"><Download className="w-5 h-5" /></a>
                 </div>
               </div>
             ))}
@@ -195,7 +416,7 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
         ) : (
           <div className="text-gray-500 flex flex-col items-center gap-4">
             <ImageIcon className="w-16 h-16 opacity-20" />
-            <p>Enter a prompt to generate images</p>
+            <p className="text-sm font-medium">Enter a prompt to generate images</p>
           </div>
         )}
       </div>
@@ -203,18 +424,23 @@ const GenerateTab = ({ onSave, onAnimate, onEdit, showToast, kieKey }: any) => {
   );
 };
 
-const AnimateTab = ({ initialImage, onSave, showToast, kieKey }: any) => {
+const AnimateTab = ({ initialImage, onSave, onPreview, showToast, kieKey }: any) => {
   const [sourceImage, setSourceImage] = useState<string | null>(initialImage);
+  const [model, setModel] = useState('kling-ai');
+  const [aspectRatio, setAspectRatio] = useState('16:9');
+  const [resolution, setResolution] = useState('1080p');
   const [motionPrompt, setMotionPrompt] = useState('');
   const [duration, setDuration] = useState('5s');
   const [fps, setFps] = useState('30');
   const [intensity, setIntensity] = useState('Medium');
   const [camera, setCamera] = useState('None');
-  const [isAnimating, setIsAnimating] = useState(false);
+  const [isGenerating, setIsGenerating] = useState(false);
   const [videoResult, setVideoResult] = useState<string | null>(null);
+  const [klingMotion, setKlingMotion] = useState({ panX: 0, panY: 0, zoom: 0, tilt: 0, roll: 0 });
+  const [endImage, setEndImage] = useState<string | null>(null);
 
   const handleAnimate = async () => {
-    setIsAnimating(true);
+    setIsGenerating(true);
     try {
       // Simulate API call to kie.ai
       const response = await fetch('https://api.kie.ai/v1/videos/animate', {
@@ -224,13 +450,17 @@ const AnimateTab = ({ initialImage, onSave, showToast, kieKey }: any) => {
           'Authorization': `Bearer ${kieKey || 'mock-key'}`,
         },
         body: JSON.stringify({
-          model: 'Kling AI 3.0',
+          model: model,
           image: sourceImage,
+          end_image: model.includes('kling') ? endImage : undefined,
           prompt: motionPrompt,
+          aspect_ratio: aspectRatio,
+          resolution,
           duration,
           fps,
           intensity,
           camera,
+          klingMotion: model.includes('kling') ? klingMotion : undefined
         })
       });
 
@@ -248,13 +478,32 @@ const AnimateTab = ({ initialImage, onSave, showToast, kieKey }: any) => {
         showToast('Video generated successfully (Mocked)');
       }, 3000);
     } finally {
-      setIsAnimating(false);
+      setIsGenerating(false);
     }
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full overflow-hidden">
-      <div className="w-full md:w-80 bg-[#131318] border-r border-white/10 p-5 overflow-y-auto flex flex-col gap-6 custom-scrollbar shrink-0">
+    <div className="flex flex-col md:flex-row h-full overflow-hidden min-h-0">
+      <div className="w-full md:w-80 h-[45vh] md:h-full bg-[#131318] border-r border-white/10 p-5 overflow-y-auto overscroll-behavior-contain flex flex-col gap-6 custom-scrollbar shrink-0">
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Model</label>
+          <ModelSelector model={model} setModel={setModel} modelsList={VIDEO_MODELS} />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Aspect Ratio</label>
+          <AspectRatioSelector aspectRatio={aspectRatio} setAspectRatio={setAspectRatio} />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Resolution</label>
+          <div className="flex gap-2">
+            {['720p', '1080p', '4K'].map(r => (
+              <button key={r} onClick={() => setResolution(r)} className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${resolution === r ? 'border-[#ccff00] text-[#ccff00] bg-[#ccff00]/10' : 'border-white/10 text-gray-400 hover:bg-white/5'}`}>{r}</button>
+            ))}
+          </div>
+        </div>
+
         <div>
           <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Start Frame</label>
           <div className="aspect-video bg-black/50 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center relative overflow-hidden group">
@@ -278,9 +527,34 @@ const AnimateTab = ({ initialImage, onSave, showToast, kieKey }: any) => {
           </div>
         </div>
 
+        {model.includes('kling') && (
+          <div>
+            <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">End Frame</label>
+            <div className="aspect-video bg-black/50 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center relative overflow-hidden group">
+              {endImage ? (
+                <>
+                  <img src={endImage} alt="End" className="w-full h-full object-cover opacity-50 group-hover:opacity-30 transition-opacity" />
+                  <button onClick={() => setEndImage(null)} className="absolute p-2 bg-black/50 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"><XCircle className="w-5 h-5" /></button>
+                </>
+              ) : (
+                <div className="text-center p-4">
+                  <UploadCloud className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                  <p className="text-xs text-gray-400">Drag & drop or click to upload</p>
+                </div>
+              )}
+              <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => {
+                if (e.target.files?.[0]) {
+                  const url = URL.createObjectURL(e.target.files[0]);
+                  setEndImage(url);
+                }
+              }} />
+            </div>
+          </div>
+        )}
+
         <div>
           <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Motion Prompt</label>
-          <textarea 
+          <textarea
             value={motionPrompt} onChange={e => setMotionPrompt(e.target.value)}
             className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#ccff00] resize-none h-24"
             placeholder="Describe the motion..."
@@ -312,24 +586,71 @@ const AnimateTab = ({ initialImage, onSave, showToast, kieKey }: any) => {
               ))}
             </div>
           </div>
+
+          {model.includes('kling') && (
+            <div className="border-t border-white/10 pt-4 mt-2">
+              <label className="block text-xs font-medium text-[#ccff00] uppercase tracking-wider mb-4 flex items-center gap-2">
+                <Settings className="w-3 h-3" /> Kling AI Motion Controls
+              </label>
+              <div className="space-y-4">
+                <div>
+                  <div className="flex justify-between text-xs mb-1 text-gray-400"><span>Pan X</span><span>{klingMotion.panX}</span></div>
+                  <input type="range" min="-10" max="10" value={klingMotion.panX} onChange={e => setKlingMotion({ ...klingMotion, panX: Number(e.target.value) })} className="w-full accent-[#ccff00]" />
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs mb-1 text-gray-400"><span>Pan Y</span><span>{klingMotion.panY}</span></div>
+                  <input type="range" min="-10" max="10" value={klingMotion.panY} onChange={e => setKlingMotion({ ...klingMotion, panY: Number(e.target.value) })} className="w-full accent-[#ccff00]" />
+                </div>
+                <div>
+                  <div className="flex justify-between text-xs mb-1 text-gray-400"><span>Zoom</span><span>{klingMotion.zoom}</span></div>
+                  <input type="range" min="-10" max="10" value={klingMotion.zoom} onChange={e => setKlingMotion({ ...klingMotion, zoom: Number(e.target.value) })} className="w-full accent-[#ccff00]" />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <div className="flex justify-between text-xs mb-1 text-gray-400"><span>Tilt</span><span>{klingMotion.tilt}</span></div>
+                    <input type="range" min="-10" max="10" value={klingMotion.tilt} onChange={e => setKlingMotion({ ...klingMotion, tilt: Number(e.target.value) })} className="w-full accent-[#ccff00]" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-xs mb-1 text-gray-400"><span>Roll</span><span>{klingMotion.roll}</span></div>
+                    <input type="range" min="-10" max="10" value={klingMotion.roll} onChange={e => setKlingMotion({ ...klingMotion, roll: Number(e.target.value) })} className="w-full accent-[#ccff00]" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
 
-        <button 
+        <button
           onClick={handleAnimate}
-          disabled={isAnimating || !sourceImage}
+          disabled={isGenerating || !sourceImage}
           className="mt-auto w-full bg-[#ccff00] text-black font-semibold py-3.5 rounded-xl hover:bg-[#b3e600] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
         >
-          {isAnimating ? <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <Play className="w-5 h-5" />}
-          {isAnimating ? 'Animating...' : 'Animate'}
+          {isGenerating ? <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <Play className="w-5 h-5" />}
+          {isGenerating ? 'Generating...' : 'Generate Video'}
         </button>
       </div>
 
-      <div className="flex-1 bg-[#0a0a0f] p-4 md:p-6 overflow-y-auto flex items-center justify-center custom-scrollbar">
+      <div className="flex-1 bg-[#0a0a0f] p-4 md:p-8 overflow-y-auto flex items-center justify-center custom-scrollbar">
         {videoResult ? (
-          <div className="relative group w-full max-w-4xl aspect-video bg-black rounded-2xl overflow-hidden border border-white/10">
-            <video src={videoResult} autoPlay loop controls className="w-full h-full object-contain" />
-            <div className="absolute top-4 right-4 opacity-0 group-hover:opacity-100 transition-opacity flex gap-2">
-              <button onClick={() => onSave(videoResult, motionPrompt, 'video')} className="p-2 bg-black/50 hover:bg-[#ccff00] hover:text-black rounded-full text-white transition-colors" title="Save to Library"><LibraryIcon className="w-5 h-5" /></button>
+          <div
+            className="relative group w-full max-w-5xl aspect-video bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl cursor-pointer"
+            onClick={() => onPreview({ url: videoResult, prompt: motionPrompt, type: 'video' })}
+          >
+            <video src={videoResult} autoPlay loop muted className="w-full h-full object-contain" />
+            <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#ccff00] flex items-center justify-center text-black">
+                  <Play className="w-5 h-5 fill-current" />
+                </div>
+                <span className="text-sm font-medium text-white">Click to enlarge</span>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onSave(videoResult, motionPrompt, 'video'); }}
+                className="p-3 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md"
+                title="Save to Library"
+              >
+                <LibraryIcon className="w-5 h-5" />
+              </button>
             </div>
           </div>
         ) : (
@@ -416,7 +737,7 @@ const EditorTab = ({ initialImage, onSave, showToast }: any) => {
     const rect = canvas.getBoundingClientRect();
     const scaleX = canvas.width / rect.width;
     const scaleY = canvas.height / rect.height;
-    
+
     let clientX, clientY;
     if ('touches' in e) {
       clientX = e.touches[0].clientX;
@@ -464,8 +785,8 @@ const EditorTab = ({ initialImage, onSave, showToast }: any) => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-full overflow-hidden">
-      <div className="w-full md:w-80 bg-[#131318] border-r border-white/10 p-5 overflow-y-auto flex flex-col gap-6 custom-scrollbar shrink-0">
+    <div className="flex flex-col md:flex-row h-full overflow-y-auto md:overflow-hidden min-h-0 custom-scrollbar overscroll-behavior-contain">
+      <div className="w-full md:w-80 h-auto md:h-full bg-[#131318] border-t md:border-t-0 md:border-r border-white/10 p-5 flex flex-col gap-6 shrink-0 order-last md:order-first">
         <div>
           <h3 className="text-xs font-medium text-gray-400 uppercase tracking-wider mb-4">Adjustments</h3>
           <div className="space-y-4">
@@ -501,7 +822,7 @@ const EditorTab = ({ initialImage, onSave, showToast }: any) => {
           </div>
         </div>
 
-        <button 
+        <button
           onClick={handleSave}
           disabled={!image}
           className="mt-auto w-full bg-[#ccff00] text-black font-semibold py-3.5 rounded-xl hover:bg-[#b3e600] transition-colors disabled:opacity-50"
@@ -510,7 +831,7 @@ const EditorTab = ({ initialImage, onSave, showToast }: any) => {
         </button>
       </div>
 
-      <div className="flex-1 bg-[#0a0a0f] p-4 md:p-6 overflow-y-auto flex items-center justify-center relative custom-scrollbar">
+      <div className="flex-1 bg-[#0a0a0f] p-4 md:p-6 md:overflow-y-auto overscroll-behavior-contain flex items-center justify-center relative custom-scrollbar shrink-0 md:shrink">
         {!image && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
             <ImageIcon className="w-16 h-16 opacity-20 mb-4" />
@@ -535,7 +856,98 @@ const EditorTab = ({ initialImage, onSave, showToast }: any) => {
   );
 };
 
-const LibraryTab = ({ library, setLibrary, onEdit, onAnimate }: any) => {
+const PreviewModal = ({ isOpen, onClose, item, onEdit, onAnimate, onSave }: any) => {
+  if (!item) return null;
+
+  return (
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-xl flex items-center justify-center p-4 md:p-10"
+        >
+          <motion.button
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            onClick={onClose}
+            className="absolute top-6 right-6 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-20"
+          >
+            <XCircle className="w-8 h-8" />
+          </motion.button>
+
+          <div className="w-full max-w-7xl h-full flex flex-col md:flex-row gap-8 items-center justify-center pointer-events-none">
+            <div className="flex-1 h-full flex items-center justify-center pointer-events-auto w-full relative group">
+              {item.type === 'image' ? (
+                <img
+                  src={item.url}
+                  alt={item.prompt}
+                  className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                />
+              ) : (
+                <video
+                  src={item.url}
+                  controls
+                  autoPlay
+                  loop
+                  className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
+                />
+              )}
+            </div>
+
+            <div className="md:w-96 w-full flex flex-col gap-6 p-6 bg-[#131318] border border-white/10 rounded-2xl md:self-start pointer-events-auto max-h-full overflow-y-auto custom-scrollbar">
+              <div>
+                <h3 className="text-xs font-medium text-[#ccff00] uppercase tracking-wider mb-2">Prompt</h3>
+                <p className="text-sm text-gray-200 leading-relaxed font-medium">{item.prompt || 'No description available'}</p>
+              </div>
+
+              <div className="flex flex-col gap-2">
+                <h3 className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Actions</h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {onSave && (
+                    <button
+                      onClick={() => onSave(item.url, item.prompt, item.type)}
+                      className="flex items-center justify-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm transition-colors border border-white/5"
+                    >
+                      <LibraryIcon className="w-4 h-4" /> Save
+                    </button>
+                  )}
+                  {item.type === 'image' && onEdit && (
+                    <button
+                      onClick={() => { onEdit(item.url); onClose(); }}
+                      className="flex items-center justify-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm transition-colors border border-white/5"
+                    >
+                      <Edit3 className="w-4 h-4" /> Edit
+                    </button>
+                  )}
+                  {item.type === 'image' && onAnimate && (
+                    <button
+                      onClick={() => { onAnimate(item.url); onClose(); }}
+                      className="flex items-center justify-center gap-2 p-3 bg-white/5 hover:bg-white/10 rounded-xl text-sm transition-colors border border-white/5"
+                    >
+                      <Video className="w-4 h-4" /> Animate
+                    </button>
+                  )}
+                  <a
+                    href={item.url}
+                    download
+                    className="flex items-center justify-center gap-2 p-3 bg-[#ccff00] text-black font-semibold rounded-xl text-sm transition-colors"
+                  >
+                    <Download className="w-4 h-4" /> Download
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
+
+const LibraryTab = ({ library, setLibrary, onEdit, onAnimate, onPreview }: any) => {
   const [filter, setFilter] = useState('All');
   const [search, setSearch] = useState('');
 
@@ -550,7 +962,7 @@ const LibraryTab = ({ library, setLibrary, onEdit, onAnimate }: any) => {
   };
 
   return (
-    <div className="h-full flex flex-col p-4 md:p-6 overflow-hidden">
+    <div className="h-full flex flex-col p-4 md:p-6 overflow-hidden min-h-0">
       <div className="flex flex-col md:flex-row justify-between items-center gap-4 mb-6 shrink-0">
         <div className="flex bg-[#131318] rounded-xl p-1 border border-white/10 w-full md:w-auto">
           {['All', 'Image', 'Video'].map(f => (
@@ -559,35 +971,44 @@ const LibraryTab = ({ library, setLibrary, onEdit, onAnimate }: any) => {
             </button>
           ))}
         </div>
-        <input 
+        <input
           type="text" placeholder="Search prompts..." value={search} onChange={e => setSearch(e.target.value)}
           className="bg-[#131318] border border-white/10 rounded-xl px-4 py-2 text-sm text-white focus:outline-none focus:border-[#ccff00] w-full md:w-64"
         />
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar pr-2">
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
           {filtered.map((item: LibraryItem) => (
-            <div key={item.id} className="group relative aspect-square bg-[#131318] rounded-xl overflow-hidden border border-white/10">
+            <div
+              key={item.id}
+              className="group relative aspect-square bg-[#131318] rounded-2xl overflow-hidden border border-white/10 hover:border-[#ccff00]/30 transition-all cursor-pointer"
+              onClick={() => onPreview({ url: item.url, prompt: item.prompt, type: item.type })}
+            >
               {item.type === 'image' ? (
-                <img src={item.url} alt={item.prompt} className="w-full h-full object-cover" />
+                <img src={item.url} alt={item.prompt} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
               ) : (
-                <video src={item.url} className="w-full h-full object-cover" />
+                <div className="w-full h-full relative">
+                  <video src={item.url} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                    <Play className="w-8 h-8 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </div>
+                </div>
               )}
-              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-md text-[10px] font-medium uppercase tracking-wider">
+              <div className="absolute top-2 left-2 bg-black/60 backdrop-blur-md px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider border border-white/5">
                 {item.type}
               </div>
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-4">
-                <p className="text-xs line-clamp-2 mb-3 text-gray-200">{item.prompt}</p>
-                <div className="flex gap-2">
+                <p className="text-xs line-clamp-2 mb-3 text-gray-200 font-medium">{item.prompt}</p>
+                <div className="flex gap-2" onClick={e => e.stopPropagation()}>
                   {item.type === 'image' && (
                     <>
-                      <button onClick={() => onEdit(item.url)} className="p-1.5 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-lg text-white transition-colors" title="Edit"><Edit3 className="w-4 h-4" /></button>
-                      <button onClick={() => onAnimate(item.url)} className="p-1.5 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-lg text-white transition-colors" title="Animate"><Video className="w-4 h-4" /></button>
+                      <button onClick={() => onEdit(item.url)} className="p-2 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md" title="Edit"><Edit3 className="w-4 h-4" /></button>
+                      <button onClick={() => onAnimate(item.url)} className="p-2 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md" title="Animate"><Video className="w-4 h-4" /></button>
                     </>
                   )}
-                  <a href={item.url} download className="p-1.5 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-lg text-white transition-colors" title="Download"><Download className="w-4 h-4" /></a>
-                  <button onClick={() => handleDelete(item.id)} className="p-1.5 bg-white/10 hover:bg-red-500 hover:text-white rounded-lg text-white transition-colors ml-auto" title="Delete"><Trash2 className="w-4 h-4" /></button>
+                  <a href={item.url} download className="p-2 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md" title="Download"><Download className="w-4 h-4" /></a>
+                  <button onClick={() => handleDelete(item.id)} className="p-2 bg-white/10 hover:bg-red-500/20 hover:text-red-500 rounded-xl text-white transition-all backdrop-blur-md ml-auto" title="Delete"><Trash2 className="w-4 h-4" /></button>
                 </div>
               </div>
             </div>
@@ -606,13 +1027,13 @@ const LibraryTab = ({ library, setLibrary, onEdit, onAnimate }: any) => {
 
 const SettingsTab = ({ kieKey, setKieKey, showToast }: any) => {
   return (
-    <div className="p-6 max-w-2xl mx-auto w-full overflow-y-auto h-full custom-scrollbar">
+    <div className="p-6 max-w-2xl mx-auto w-full overflow-y-auto h-full overscroll-behavior-contain custom-scrollbar">
       <h2 className="text-2xl font-bold mb-8">Settings</h2>
-      
+
       <div className="space-y-6 bg-[#131318] p-6 rounded-2xl border border-white/10">
         <div>
           <label className="block text-sm font-medium text-gray-300 mb-2">kie.ai API Key</label>
-          <input 
+          <input
             type="password" value={kieKey} onChange={e => setKieKey(e.target.value)}
             className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#ccff00]"
             placeholder="sk-..."
@@ -620,7 +1041,7 @@ const SettingsTab = ({ kieKey, setKieKey, showToast }: any) => {
           <p className="text-xs text-gray-500 mt-2">Required for NanoBanana 2 and Kling AI 3.0 via kie.ai</p>
         </div>
 
-        <button 
+        <button
           onClick={() => showToast('Settings saved successfully')}
           className="bg-[#ccff00] text-black font-semibold px-6 py-2.5 rounded-xl hover:bg-[#b3e600] transition-colors"
         >
@@ -651,11 +1072,10 @@ const Sidebar = ({ activeTab, setActiveTab }: any) => {
           <button
             key={item.id}
             onClick={() => setActiveTab(item.id as Tab)}
-            className={`flex flex-col md:flex-row items-center justify-center lg:justify-start p-2 lg:p-3 rounded-xl transition-colors min-w-[64px] md:min-w-0 ${
-              activeTab === item.id 
-                ? 'bg-white/10 text-white' 
-                : 'text-gray-400 hover:bg-white/5 hover:text-white'
-            }`}
+            className={`flex flex-col md:flex-row items-center justify-center lg:justify-start p-2 lg:p-3 rounded-xl transition-colors min-w-[64px] md:min-w-0 ${activeTab === item.id
+              ? 'bg-white/10 text-white'
+              : 'text-gray-400 hover:bg-white/5 hover:text-white'
+              }`}
           >
             <item.icon className="w-5 h-5 md:w-6 md:h-6 lg:w-5 lg:h-5" />
             <span className="text-[10px] mt-1 md:mt-0 lg:text-sm lg:ml-3 font-medium block lg:block md:hidden">{item.label}</span>
@@ -666,15 +1086,15 @@ const Sidebar = ({ activeTab, setActiveTab }: any) => {
   );
 };
 
-const TopBar = ({ activeTab, kieKey }: any) => {
+const TopBar = ({ activeTab, kieKey, onSetupKeysClick }: any) => {
   const isConnected = !!kieKey;
   return (
-    <div className="h-14 md:h-16 bg-[#0a0a0f]/80 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-4 md:px-6 shrink-0 z-10 absolute top-0 left-0 right-0">
+    <div className="h-14 md:h-16 bg-[#0a0a0f]/80 backdrop-blur-md border-b border-white/10 flex items-center justify-between px-4 md:px-6 shrink-0 z-10 w-full">
       <h1 className="text-base md:text-lg font-medium capitalize">{activeTab}</h1>
-      <div className="flex items-center gap-2 text-xs md:text-sm bg-white/5 px-3 py-1.5 rounded-full border border-white/10">
+      <button onClick={onSetupKeysClick} className="flex items-center gap-2 text-xs md:text-sm bg-white/5 hover:bg-white/10 transition-colors px-3 py-1.5 rounded-full border border-white/10">
         <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-[#ccff00]' : 'bg-gray-500'}`} />
         <span className={isConnected ? 'text-white' : 'text-gray-400'}>{isConnected ? 'Connected' : 'Setup Keys'}</span>
-      </div>
+      </button>
     </div>
   );
 };
@@ -683,10 +1103,10 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('generate');
   const [kieKey, setKieKey] = useState('');
   const [library, setLibrary] = useState<LibraryItem[]>([]);
-  const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
   const [showKeyPrompt, setShowKeyPrompt] = useState(true);
 
-  const showToast = (message: string, type: 'success'|'error' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
@@ -716,15 +1136,20 @@ export default function App() {
 
   const [editorImage, setEditorImage] = useState<string | null>(null);
   const [animateImage, setAnimateImage] = useState<string | null>(null);
+  const [previewItem, setPreviewItem] = useState<{ url: string, prompt: string, type: 'image' | 'video' } | null>(null);
+
+  const handlePreview = (item: { url: string, prompt: string, type: 'image' | 'video' }) => {
+    setPreviewItem(item);
+  };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-[#0a0a0f] text-white font-sans overflow-hidden selection:bg-[#ccff00] selection:text-black">
+    <div className="flex flex-col md:flex-row h-screen h-[100dvh] bg-[#0a0a0f] text-white font-sans overflow-hidden selection:bg-[#ccff00] selection:text-black">
       <Sidebar activeTab={activeTab} setActiveTab={setActiveTab} />
-      
+
       <main className="flex-1 flex flex-col h-full min-w-0 relative">
-        <TopBar activeTab={activeTab} kieKey={kieKey} />
-        
-        <div className="flex-1 overflow-hidden relative pt-14 md:pt-16">
+        <TopBar activeTab={activeTab} kieKey={kieKey} onSetupKeysClick={() => setShowKeyPrompt(true)} />
+
+        <div className="flex-1 overflow-hidden relative min-h-0">
           <AnimatePresence mode="wait">
             <motion.div
               key={activeTab}
@@ -732,49 +1157,61 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
-              className="h-full w-full absolute inset-0 pt-14 md:pt-16"
+              className="h-full w-full"
             >
               {activeTab === 'generate' && (
-                <GenerateTab 
-                  onSave={handleSaveToLibrary} 
-                  onAnimate={handleSendToAnimate} 
-                  onEdit={handleSendToEdit} 
-                  showToast={showToast} 
+                <GenerateTab
+                  onSave={handleSaveToLibrary}
+                  onAnimate={handleSendToAnimate}
+                  onEdit={handleSendToEdit}
+                  onPreview={handlePreview}
+                  showToast={showToast}
                   kieKey={kieKey}
                 />
               )}
               {activeTab === 'animate' && (
-                <AnimateTab 
-                  initialImage={animateImage} 
-                  onSave={handleSaveToLibrary} 
-                  showToast={showToast} 
+                <AnimateTab
+                  initialImage={animateImage}
+                  onSave={handleSaveToLibrary}
+                  onPreview={handlePreview}
+                  showToast={showToast}
                   kieKey={kieKey}
                 />
               )}
               {activeTab === 'editor' && (
-                <EditorTab 
-                  initialImage={editorImage} 
-                  onSave={handleSaveToLibrary} 
-                  showToast={showToast} 
+                <EditorTab
+                  initialImage={editorImage}
+                  onSave={handleSaveToLibrary}
+                  showToast={showToast}
                 />
               )}
               {activeTab === 'library' && (
-                <LibraryTab 
-                  library={library} 
-                  setLibrary={setLibrary} 
-                  onEdit={handleSendToEdit} 
-                  onAnimate={handleSendToAnimate} 
+                <LibraryTab
+                  library={library}
+                  setLibrary={setLibrary}
+                  onEdit={handleSendToEdit}
+                  onAnimate={handleSendToAnimate}
+                  onPreview={handlePreview}
                 />
               )}
               {activeTab === 'settings' && (
-                <SettingsTab 
-                  kieKey={kieKey} setKieKey={setKieKey} 
-                  showToast={showToast} 
+                <SettingsTab
+                  kieKey={kieKey} setKieKey={setKieKey}
+                  showToast={showToast}
                 />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
+
+        <PreviewModal
+          isOpen={!!previewItem}
+          onClose={() => setPreviewItem(null)}
+          item={previewItem}
+          onEdit={handleSendToEdit}
+          onAnimate={handleSendToAnimate}
+          onSave={activeTab === 'generate' ? handleSaveToLibrary : undefined}
+        />
 
         <AnimatePresence>
           {toast && (
@@ -791,7 +1228,7 @@ export default function App() {
         </AnimatePresence>
 
         <AnimatePresence>
-          {showKeyPrompt && !kieKey && (
+          {showKeyPrompt && (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -801,10 +1238,10 @@ export default function App() {
               <div className="bg-[#131318] border border-white/10 p-8 rounded-2xl max-w-md w-full shadow-2xl">
                 <h2 className="text-2xl font-bold mb-2">Welcome to Studio</h2>
                 <p className="text-gray-400 text-sm mb-6">Please enter your kie.ai API key to enable image and video generation. You can also do this later in Settings.</p>
-                
+
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-300 mb-2">kie.ai API Key</label>
-                  <input 
+                  <input
                     type="password" value={kieKey} onChange={e => setKieKey(e.target.value)}
                     className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#ccff00]"
                     placeholder="sk-..."
@@ -812,13 +1249,13 @@ export default function App() {
                 </div>
 
                 <div className="flex gap-3">
-                  <button 
+                  <button
                     onClick={() => setShowKeyPrompt(false)}
                     className="flex-1 py-2.5 rounded-xl border border-white/10 text-white hover:bg-white/5 transition-colors font-medium"
                   >
                     Skip for now
                   </button>
-                  <button 
+                  <button
                     onClick={() => {
                       if (kieKey) {
                         setShowKeyPrompt(false);
