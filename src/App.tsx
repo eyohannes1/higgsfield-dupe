@@ -5,11 +5,12 @@ import {
   CheckCircle2, XCircle, UploadCloud, SlidersHorizontal,
   Undo, Redo, Type, Eraser, MousePointer2, Crop, RotateCw, FlipHorizontal,
   ChevronDown, ChevronUp, Sparkles, Check,
-  Search, Box, UserSquare, BarChart2, ChevronRight, Monitor, Smartphone, Square, Presentation
+  Search, Box, UserSquare, BarChart2, ChevronRight, Monitor, Smartphone, Square, Presentation,
+  Move, RotateCcw
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
-type Tab = 'generate' | 'animate' | 'editor' | 'library' | 'settings';
+type Tab = 'generate' | 'animate' | 'motion' | 'editor' | 'library' | 'settings';
 
 type LibraryItem = {
   id: string;
@@ -664,6 +665,343 @@ const AnimateTab = ({ initialImage, onSave, onPreview, showToast, kieKey }: any)
   );
 };
 
+type MotionArrow = { startX: number; startY: number; endX: number; endY: number };
+
+const MotionControlTab = ({ onSave, onPreview, showToast, kieKey }: any) => {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [sourceImage, setSourceImage] = useState<string | null>(null);
+  const [loadedImage, setLoadedImage] = useState<HTMLImageElement | null>(null);
+  const [arrows, setArrows] = useState<MotionArrow[]>([]);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+  const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
+  const [brushSize, setBrushSize] = useState(3);
+  const [motionPrompt, setMotionPrompt] = useState('');
+  const [duration, setDuration] = useState('5s');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [videoResult, setVideoResult] = useState<string | null>(null);
+  const [canvasSize, setCanvasSize] = useState({ width: 800, height: 600 });
+
+  useEffect(() => {
+    if (!sourceImage) { setLoadedImage(null); return; }
+    const img = new window.Image();
+    img.onload = () => setLoadedImage(img);
+    img.src = sourceImage;
+  }, [sourceImage]);
+
+  useEffect(() => {
+    if (!loadedImage || !containerRef.current) return;
+    const container = containerRef.current;
+    const maxW = container.clientWidth;
+    const maxH = container.clientHeight;
+    const scale = Math.min(maxW / loadedImage.width, maxH / loadedImage.height, 1);
+    setCanvasSize({ width: Math.floor(loadedImage.width * scale), height: Math.floor(loadedImage.height * scale) });
+  }, [loadedImage]);
+
+  const drawArrow = useCallback((ctx: CanvasRenderingContext2D, arrow: MotionArrow, isDashed = false) => {
+    const { startX, startY, endX, endY } = arrow;
+    const dx = endX - startX;
+    const dy = endY - startY;
+    const len = Math.sqrt(dx * dx + dy * dy);
+    if (len < 5) return;
+    const angle = Math.atan2(dy, dx);
+    const headLen = Math.min(16, len * 0.3);
+
+    ctx.save();
+    ctx.strokeStyle = '#ccff00';
+    ctx.fillStyle = '#ccff00';
+    ctx.lineWidth = brushSize;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (isDashed) {
+      ctx.setLineDash([8, 6]);
+      ctx.globalAlpha = 0.6;
+    } else {
+      ctx.shadowColor = '#ccff00';
+      ctx.shadowBlur = 6;
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(endX - headLen * Math.cos(angle - Math.PI / 6), endY - headLen * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(endX - headLen * Math.cos(angle + Math.PI / 6), endY - headLen * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }, [brushSize]);
+
+  const renderCanvas = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    if (loadedImage) {
+      ctx.drawImage(loadedImage, 0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.15)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    arrows.forEach(a => drawArrow(ctx, a));
+
+    if (isDrawing && drawStart && drawCurrent) {
+      drawArrow(ctx, { startX: drawStart.x, startY: drawStart.y, endX: drawCurrent.x, endY: drawCurrent.y }, true);
+    }
+  }, [loadedImage, arrows, isDrawing, drawStart, drawCurrent, drawArrow]);
+
+  useEffect(() => { renderCanvas(); }, [renderCanvas]);
+
+  const getCanvasPos = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0]?.clientX ?? e.changedTouches[0]?.clientX ?? 0 : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0]?.clientY ?? e.changedTouches[0]?.clientY ?? 0 : e.clientY;
+    return { x: ((clientX - rect.left) / rect.width) * canvas.width, y: ((clientY - rect.top) / rect.height) * canvas.height };
+  };
+
+  const handlePointerDown = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!loadedImage) return;
+    const pos = getCanvasPos(e);
+    setDrawStart(pos);
+    setDrawCurrent(pos);
+    setIsDrawing(true);
+  };
+
+  const handlePointerMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    setDrawCurrent(getCanvasPos(e));
+  };
+
+  const handlePointerUp = (e: React.MouseEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !drawStart) return;
+    const end = getCanvasPos(e);
+    const dx = end.x - drawStart.x;
+    const dy = end.y - drawStart.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 10) {
+      setArrows(prev => [...prev, { startX: drawStart.x, startY: drawStart.y, endX: end.x, endY: end.y }]);
+    }
+    setIsDrawing(false);
+    setDrawStart(null);
+    setDrawCurrent(null);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!loadedImage) return;
+    e.preventDefault();
+    const pos = getCanvasPos(e);
+    setDrawStart(pos);
+    setDrawCurrent(pos);
+    setIsDrawing(true);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    e.preventDefault();
+    setDrawCurrent(getCanvasPos(e));
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing || !drawStart) return;
+    const end = getCanvasPos(e);
+    const dx = end.x - drawStart.x;
+    const dy = end.y - drawStart.y;
+    if (Math.sqrt(dx * dx + dy * dy) > 10) {
+      setArrows(prev => [...prev, { startX: drawStart.x, startY: drawStart.y, endX: end.x, endY: end.y }]);
+    }
+    setIsDrawing(false);
+    setDrawStart(null);
+    setDrawCurrent(null);
+  };
+
+  const handleGenerate = async () => {
+    if (!sourceImage) return;
+    setIsGenerating(true);
+    try {
+      const response = await fetch('https://api.kie.ai/v1/videos/motion-control', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${kieKey || 'mock-key'}` },
+        body: JSON.stringify({
+          model: 'kling-ai',
+          image: sourceImage,
+          motion_vectors: arrows.map(a => ({
+            start: { x: a.startX / canvasSize.width, y: a.startY / canvasSize.height },
+            end: { x: a.endX / canvasSize.width, y: a.endY / canvasSize.height },
+          })),
+          prompt: motionPrompt,
+          duration,
+        })
+      });
+      if (!response.ok) throw new Error('API request failed');
+      const data = await response.json();
+      setVideoResult(data.video_url);
+      showToast('Motion control video generated');
+    } catch {
+      setTimeout(() => {
+        setVideoResult('https://www.w3schools.com/html/mov_bbb.mp4');
+        showToast('Motion video generated (Mocked)');
+      }, 3000);
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col md:flex-row h-full overflow-hidden min-h-0">
+      <div className="w-full md:w-80 h-[45vh] md:h-full bg-[#131318] border-r border-white/10 p-5 overflow-y-auto overscroll-behavior-contain flex flex-col gap-6 custom-scrollbar shrink-0">
+        <div>
+          <label className="block text-xs font-medium text-[#ccff00] uppercase tracking-wider mb-2 flex items-center gap-2">
+            <Move className="w-3.5 h-3.5" /> Kling Motion Control
+          </label>
+          <p className="text-xs text-gray-500 mb-4">Draw motion arrows on your image to control character and object movement.</p>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Source Image</label>
+          <div className="aspect-video bg-black/50 border-2 border-dashed border-white/10 rounded-xl flex flex-col items-center justify-center relative overflow-hidden group">
+            {sourceImage ? (
+              <>
+                <img src={sourceImage} alt="Source" className="w-full h-full object-cover opacity-50 group-hover:opacity-30 transition-opacity" />
+                <button onClick={() => { setSourceImage(null); setArrows([]); setVideoResult(null); }} className="absolute p-2 bg-black/50 rounded-full text-white opacity-0 group-hover:opacity-100 transition-opacity"><XCircle className="w-5 h-5" /></button>
+              </>
+            ) : (
+              <div className="text-center p-4">
+                <UploadCloud className="w-8 h-8 text-gray-500 mx-auto mb-2" />
+                <p className="text-xs text-gray-400">Upload image to draw motion</p>
+              </div>
+            )}
+            <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={e => {
+              if (e.target.files?.[0]) {
+                setSourceImage(URL.createObjectURL(e.target.files[0]));
+                setArrows([]);
+                setVideoResult(null);
+              }
+            }} />
+          </div>
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Brush Size</label>
+          <div className="flex items-center gap-3">
+            <input type="range" min="1" max="8" value={brushSize} onChange={e => setBrushSize(Number(e.target.value))} className="flex-1 accent-[#ccff00]" />
+            <span className="text-xs text-gray-400 w-6 text-right">{brushSize}px</span>
+          </div>
+        </div>
+
+        <div className="flex gap-2">
+          <button
+            onClick={() => setArrows(prev => prev.slice(0, -1))}
+            disabled={arrows.length === 0}
+            className="flex-1 py-2 text-xs rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 disabled:opacity-30 flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <Undo className="w-3.5 h-3.5" /> Undo
+          </button>
+          <button
+            onClick={() => setArrows([])}
+            disabled={arrows.length === 0}
+            className="flex-1 py-2 text-xs rounded-lg border border-white/10 text-gray-400 hover:bg-white/5 disabled:opacity-30 flex items-center justify-center gap-1.5 transition-colors"
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Clear All
+          </button>
+        </div>
+
+        {arrows.length > 0 && (
+          <div className="text-xs text-gray-500">
+            {arrows.length} motion vector{arrows.length !== 1 ? 's' : ''} drawn
+          </div>
+        )}
+
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Motion Prompt</label>
+          <textarea
+            value={motionPrompt} onChange={e => setMotionPrompt(e.target.value)}
+            className="w-full bg-black/50 border border-white/10 rounded-xl p-3 text-sm text-white focus:outline-none focus:border-[#ccff00] resize-none h-20"
+            placeholder="Describe the desired motion..."
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-gray-400 uppercase tracking-wider mb-2">Duration</label>
+          <div className="flex gap-2">
+            {['3s', '5s', '10s'].map(d => (
+              <button key={d} onClick={() => setDuration(d)} className={`flex-1 py-1.5 text-xs rounded-lg border transition-colors ${duration === d ? 'border-[#ccff00] text-[#ccff00] bg-[#ccff00]/10' : 'border-white/10 text-gray-400 hover:bg-white/5'}`}>{d}</button>
+            ))}
+          </div>
+        </div>
+
+        <button
+          onClick={handleGenerate}
+          disabled={isGenerating || !sourceImage || arrows.length === 0}
+          className="mt-auto w-full bg-[#ccff00] text-black font-semibold py-3.5 rounded-xl hover:bg-[#b3e600] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+        >
+          {isGenerating ? <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin" /> : <Play className="w-5 h-5" />}
+          {isGenerating ? 'Generating...' : 'Generate Motion Video'}
+        </button>
+      </div>
+
+      <div ref={containerRef} className="flex-1 bg-[#0a0a0f] p-4 md:p-8 overflow-y-auto flex items-center justify-center custom-scrollbar">
+        {videoResult ? (
+          <div
+            className="relative group w-full max-w-5xl aspect-video bg-black rounded-3xl overflow-hidden border border-white/10 shadow-2xl cursor-pointer"
+            onClick={() => onPreview({ url: videoResult, prompt: motionPrompt, type: 'video' })}
+          >
+            <video src={videoResult} autoPlay loop muted className="w-full h-full object-contain" />
+            <div className="absolute inset-x-0 bottom-0 p-6 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-[#ccff00] flex items-center justify-center text-black">
+                  <Play className="w-5 h-5 fill-current" />
+                </div>
+                <span className="text-sm font-medium text-white">Click to enlarge</span>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onSave(videoResult, motionPrompt, 'video'); }}
+                className="p-3 bg-white/10 hover:bg-[#ccff00] hover:text-black rounded-xl text-white transition-all backdrop-blur-md"
+                title="Save to Library"
+              >
+                <LibraryIcon className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        ) : sourceImage && loadedImage ? (
+          <div className="relative rounded-2xl overflow-hidden border border-white/10 shadow-2xl" style={{ width: canvasSize.width, height: canvasSize.height }}>
+            <canvas
+              ref={canvasRef}
+              width={canvasSize.width}
+              height={canvasSize.height}
+              className="cursor-crosshair block"
+              style={{ width: canvasSize.width, height: canvasSize.height }}
+              onMouseDown={handlePointerDown}
+              onMouseMove={handlePointerMove}
+              onMouseUp={handlePointerUp}
+              onMouseLeave={handlePointerUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+            />
+            <div className="absolute top-3 right-3 bg-black/60 backdrop-blur-sm rounded-lg px-3 py-1.5 text-xs text-gray-300 pointer-events-none">
+              Click & drag to draw motion arrows
+            </div>
+          </div>
+        ) : (
+          <div className="text-gray-500 flex flex-col items-center gap-4">
+            <Move className="w-16 h-16 opacity-20" />
+            <p>Upload an image to start drawing motion paths</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const EditorTab = ({ initialImage, onSave, showToast }: any) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [image, setImage] = useState<HTMLImageElement | null>(null);
@@ -1056,6 +1394,7 @@ const Sidebar = ({ activeTab, setActiveTab }: any) => {
   const navItems = [
     { id: 'generate', icon: ImageIcon, label: 'Generate' },
     { id: 'animate', icon: Video, label: 'Animate' },
+    { id: 'motion', icon: Move, label: 'Motion' },
     { id: 'editor', icon: Edit3, label: 'Editor' },
     { id: 'library', icon: LibraryIcon, label: 'Library' },
     { id: 'settings', icon: Settings, label: 'Settings' },
@@ -1172,6 +1511,14 @@ export default function App() {
               {activeTab === 'animate' && (
                 <AnimateTab
                   initialImage={animateImage}
+                  onSave={handleSaveToLibrary}
+                  onPreview={handlePreview}
+                  showToast={showToast}
+                  kieKey={kieKey}
+                />
+              )}
+              {activeTab === 'motion' && (
+                <MotionControlTab
                   onSave={handleSaveToLibrary}
                   onPreview={handlePreview}
                   showToast={showToast}
